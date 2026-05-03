@@ -84,7 +84,8 @@ document.getElementById('enable-btn').addEventListener('click', async () => {
 let heading = 0;          // 0..360 (compass, clockwise from north)
 let beta    = 0;          // -180..180, front-back tilt (top of phone tipping away from user)
 let gamma   = 0;          // -90..90, side roll
-let shakeIntensity = 0;   // smoothed |acceleration|
+let shakeIntensity = 0;   // smoothed |acceleration| (3D, for vibrato)
+let bowSpeed = 0;         // smoothed lateral acceleration (X/Y plane, for bow mode)
 
 function getCompassHeading(e) {
   // iOS Safari: webkitCompassHeading is clockwise from magnetic north (what we want).
@@ -106,6 +107,10 @@ function onMotion(e) {
   if (!a || a.x == null) return;
   const mag = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
   shakeIntensity = shakeIntensity * 0.82 + mag * 0.18;
+  // Lateral-only magnitude responds to bow strokes without picking up gravity drift on Z.
+  // Lighter smoothing (0.7/0.3) keeps it snappy for the attack/release gate.
+  const lateral = Math.sqrt(a.x * a.x + a.y * a.y);
+  bowSpeed = bowSpeed * 0.7 + lateral * 0.3;
   if (audioReady) {
     vibrato.depth.value = Math.min(0.6, shakeIntensity / 18);
   }
@@ -116,6 +121,8 @@ window.addEventListener('devicemotion', onMotion);
 
 // ---------- Modes ----------
 const PENTATONIC = ['C4', 'D4', 'E4', 'G4', 'A4', 'C5', 'D5', 'E5'];
+// Wider ladder for theremin: 2.5 octaves of A-minor pentatonic so tilt has range.
+const THEREMIN_SCALE = ['C3','D3','E3','G3','A3','C4','D4','E4','G4','A4','C5','D5','E5'];
 
 function headingToNote(h) {
   const idx = Math.floor((h / 360) * PENTATONIC.length) % PENTATONIC.length;
@@ -172,25 +179,30 @@ const modes = {
     },
   },
 
-  // Theremin: continuous pitch from front-back tilt; side lean controls volume/play gate.
+  // Theremin: tilt picks a band on the pentatonic ladder; side lean gates/scales volume.
+  // Pitch glides between bands (~120 ms portamento) so transitions feel like a slide,
+  // not a step — closer to a real theremin's continuous voice while staying in key.
   theremin: {
     enter() {
-      this.playing = false;
-      setStatus('tilt for pitch · lean for volume');
+      this.playing  = false;
+      this.bandIdx  = -1;
+      setStatus('tilt to climb scale · lean for volume');
     },
     tick() {
-      // beta -45..+45 → 0..1 → 3 octaves above C3
       const t    = Math.max(0, Math.min(1, (beta + 45) / 90));
-      const freq = 130 * Math.pow(2, t * 3);
-      // |gamma| 0..60° → 0..1 lean
+      const idx  = Math.min(THEREMIN_SCALE.length - 1, Math.floor(t * THEREMIN_SCALE.length));
+      const note = THEREMIN_SCALE[idx];
+      const freq = Tone.Frequency(note).toFrequency();
       const lean = Math.max(0, Math.min(1, Math.abs(gamma) / 60));
 
       els.tilt.style.width  = (t * 100) + '%';
       els.shake.style.width = Math.min(100, shakeIntensity * 5) + '%';
-      els.note.textContent  = Math.round(freq) + ' Hz';
+      els.note.textContent  = note;
 
       if (lean > 0.18 && !this.playing) {
-        synth.triggerAttack(freq);
+        synth.frequency.value = freq;
+        synth.triggerAttack(note);
+        this.bandIdx = idx;
         this.playing = true;
         setStatus('playing', true);
       } else if (lean < 0.08 && this.playing) {
@@ -199,8 +211,52 @@ const modes = {
         setStatus('released');
       }
       if (this.playing) {
-        synth.frequency.rampTo(freq, 0.05);
+        if (idx !== this.bandIdx) {
+          synth.frequency.rampTo(freq, 0.12);
+          this.bandIdx = idx;
+        }
         synth.volume.rampTo(-22 + lean * 14, 0.05);
+      }
+    },
+    leave() {
+      synth.triggerRelease();
+      this.playing = false;
+    },
+  },
+
+  // Bow: heading picks the note (like Conductor); lateral phone motion is the bow stroke.
+  // Hysteresis on bow speed (2.0 m/s² to attack, 0.6 to release) avoids re-triggering
+  // between strokes; volume tracks bow energy so soft strokes are quieter.
+  bow: {
+    enter() {
+      this.playing  = false;
+      this.lastNote = null;
+      setStatus('turn to choose · move side-to-side to bow');
+    },
+    tick() {
+      const note   = headingToNote(heading);
+      const BOW_ON = 2.0, BOW_OFF = 0.6;
+      const bowPct = Math.min(1, bowSpeed / 5);
+
+      els.tilt.style.width  = (bowPct * 100) + '%';
+      els.shake.style.width = Math.min(100, shakeIntensity * 5) + '%';
+      els.note.textContent  = note;
+
+      if (!this.playing && bowSpeed > BOW_ON) {
+        synth.triggerAttack(note);
+        this.lastNote = note;
+        this.playing  = true;
+        setStatus('playing', true);
+      } else if (this.playing && bowSpeed < BOW_OFF) {
+        synth.triggerRelease();
+        this.playing = false;
+        setStatus('released');
+      } else if (this.playing && note !== this.lastNote) {
+        synth.setNote(note);
+        this.lastNote = note;
+      }
+      if (this.playing) {
+        synth.volume.rampTo(-22 + bowPct * 14, 0.05);
       }
     },
     leave() {
