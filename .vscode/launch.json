@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Serve on LAN (for phone)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "echo \"\\nMobile URL: http://$(ipconfig getifaddr en0 || ipconfig getifaddr en1):4444\\nLocal URL:  http://localhost:4444\\n\" && python3 -m http.server 4444",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Launch Web (desktop fallback)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:4444",
+      "webRoot": "${workspaceFolder}"
+    }
+  ]
+}

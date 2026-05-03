@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <title>Embodied Orchestra</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+</head>
+<body>
+  <section id="desktop-fallback" class="screen">
+    <div class="stack">
+      <h1>Embodied Orchestra</h1>
+      <p>This experiment binds your phone's motion to music.</p>
+      <p class="hint">Open this page on your mobile device to play.</p>
+      <div class="lab">Sankha Cooray Lab</div>
+    </div>
+  </section>
+
+  <section id="permission-screen" class="screen hidden">
+    <div class="stack">
+      <h1>Embodied Orchestra</h1>
+      <p>Move your body. Become the instrument.</p>
+      <button id="enable-btn" class="primary">Tap to begin</button>
+      <p class="hint">We'll request motion &amp; orientation access.</p>
+    </div>
+  </section>
+
+  <section id="mode-screen" class="screen hidden">
+    <h2>Choose a play mode</h2>
+    <div class="modes">
+      <button class="mode-btn" data-mode="compass">
+        <strong>Conductor</strong>
+        <span>Turn your body to choose a note · tilt phone forward to play · shake for vibrato</span>
+      </button>
+      <button class="mode-btn" data-mode="theremin">
+        <strong>Theremin</strong>
+        <span>Tilt forward/back for pitch · lean side-to-side for volume · shake for vibrato</span>
+      </button>
+      <button class="mode-btn disabled" disabled>
+        <strong>Bow</strong>
+        <span>Coming soon · compass picks note, lateral motion bows the string</span>
+      </button>
+    </div>
+  </section>
+
+  <section id="play-screen" class="screen hidden">
+    <button id="back-btn" class="back" aria-label="back">←</button>
+    <div id="hud" class="stack">
+      <div class="big-note" id="note-display">—</div>
+      <div class="meters">
+        <div class="meter">
+          <span>tilt</span>
+          <div class="bar"><div id="tilt-bar"></div></div>
+        </div>
+        <div class="meter">
+          <span>shake</span>
+          <div class="bar"><div id="shake-bar"></div></div>
+        </div>
+      </div>
+      <div class="status" id="status">ready</div>
+    </div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
